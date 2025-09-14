@@ -18,5 +18,5 @@ EXPOSE 8000
 
 # Perintah untuk menjalankan aplikasi
 # Ganti 'main' dengan nama file Python Anda dan 'app' dengan instance 
-FastAPI Anda
+# FastAPI Anda
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
