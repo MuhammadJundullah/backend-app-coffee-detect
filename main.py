@@ -23,10 +23,11 @@ async def detect_image(file: UploadFile = File(...)):
     image = Image.open(io.BytesIO(contents)).convert("RGB")
     
     # Melakukan inferensi pada gambar
-    results = model(image)
+    results = model(image, conf=0.1)
     
     # Menggambar hasil pada gambar
-    result_image = results[0].plot()
+    # result_image = results[0].plot(labels=False, conf=False, boxes=True)
+    result_image = results[0].plot(labels=True, conf=True, boxes=True, font_size=10, line_width=2)
     result_image = Image.fromarray(result_image[..., ::-1])
     
     # Menyimpan gambar hasil ke buffer dan mengembalikannya
