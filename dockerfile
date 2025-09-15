@@ -1,5 +1,5 @@
 # Gunakan base image resmi dari Continuum Analytics yang sudah menyertakan OpenCV dan dependensinya
-FROM continuumio/miniconda3:latest
+FROM pytorch/pytorch:latest-cuda12.1-cudnn8-runtime
 
 # Atur direktori kerja di dalam kontainer
 WORKDIR /app
