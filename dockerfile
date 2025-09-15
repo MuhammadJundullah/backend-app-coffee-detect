@@ -1,14 +1,17 @@
-# Gunakan base image resmi dari Continuum Analytics yang sudah menyertakan OpenCV dan dependensinya
-FROM pytorch/pytorch:latest-cuda12.1-cudnn8-runtime
+# Gunakan base image Miniconda
+FROM continuumio/miniconda3:latest
 
 # Atur direktori kerja di dalam kontainer
 WORKDIR /app
 
-# Salin file requirements.txt ke direktori kerja
-COPY requirements.txt .
+# Salin file environment.yml ke direktori kerja
+COPY environment.yml .
 
-# Instal dependensi Python yang diperlukan
-RUN pip install --no-cache-dir -r requirements.txt
+# Buat lingkungan Conda dari file environment.yml
+RUN conda env create -f environment.yml
+
+# Atur lingkungan Conda agar aktif secara default saat masuk ke shell
+SHELL ["conda", "run", "-n", "myenv", "/bin/bash", "-c"]
 
 # Salin semua file proyek Anda ke direktori kerja
 COPY . .
@@ -17,4 +20,4 @@ COPY . .
 EXPOSE 8000
 
 # Perintah untuk menjalankan aplikasi
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["conda", "run", "-n", "myenv", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
