@@ -4,13 +4,16 @@ FROM python:3.10.18
 # Atur direktori kerja di dalam kontainer
 WORKDIR /app
 
-# Tambahkan dependensi sistem yang diperlukan oleh OpenCV, dengan --fix-missing
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1-mesa-glx && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Perbarui daftar paket dan instal dependensi sistem yang diperlukan oleh OpenCV
+# Gunakan apt-get clean & rm -rf untuk mengurangi ukuran image
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1-mesa-glx \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Salin file requirements.txt ke direktori kerja
 COPY requirements.txt .
 
-# Instal dependensi yang diperlukan
+# Instal dependensi Python yang diperlukan
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Salin semua file proyek Anda ke direktori kerja
