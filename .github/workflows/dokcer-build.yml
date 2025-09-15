@@ -23,4 +23,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/nama-aplikasi-anda:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/fastapi-yolov8-coffee-defect-detection:latest

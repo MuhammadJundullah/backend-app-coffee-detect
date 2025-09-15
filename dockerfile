@@ -1,8 +1,11 @@
-# Gunakan base image Python yang ringan
-FROM python:3.11-slim
+# Gunakan base image Python yang lengkap dengan versi 3.10.18
+FROM python:3.10.18
 
 # Atur direktori kerja di dalam kontainer
 WORKDIR /app
+
+# Tambahkan dependensi sistem yang diperlukan oleh OpenCV
+RUN apt-get update && apt-get install -y libgl1-mesa-glx
 
 # Salin file requirements.txt ke direktori kerja
 COPY requirements.txt .
@@ -17,6 +20,4 @@ COPY . .
 EXPOSE 8000
 
 # Perintah untuk menjalankan aplikasi
-# Ganti 'main' dengan nama file Python Anda dan 'app' dengan instance 
-# FastAPI Anda
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
