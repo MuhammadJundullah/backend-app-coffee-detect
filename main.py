@@ -4,63 +4,120 @@ import uvicorn
 import numpy as np
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 
 # Inisialisasi FastAPI
 app = FastAPI()
 
-# Memuat model YOLOv8
-model = YOLO('weight/yolov8n.pt')
+# Konfigurasi CORS Middleware
+# Penting untuk mengatasi masalah 400 Bad Request
+# Origins harus mencakup URL frontend Anda
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://127.0.0.1",
+    "http://127.0.0.1:3000",
+]
 
-# Endpoint untuk deteksi gambar
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # Memungkinkan semua metode HTTP, termasuk OPTIONS
+    allow_headers=["*"],  # Memungkinkan semua header
+)
+
+# Memuat model YOLOv8
+# Pastikan jalur ke bobot model sudah benar
+try:
+    model = YOLO('weight/yolov8n.pt')
+except Exception as e:
+    print(f"Error loading YOLO model: {e}")
+    model = None
+
+# Endpoint untuk deteksi gambar (menerima upload)
 @app.post("/detect/image")
 async def detect_image(file: UploadFile = File(...)):
     """
     Menerima upload gambar dan mengembalikan gambar dengan deteksi objek.
     """
-    contents = await file.read()
-    image = Image.open(io.BytesIO(contents)).convert("RGB")
-    
-    # Melakukan inferensi pada gambar
-    results = model(image, conf=0.1)
-    
-    # Menggambar hasil pada gambar
-    # result_image = results[0].plot(labels=False, conf=False, boxes=True)
-    result_image = results[0].plot(labels=True, conf=True, boxes=True, font_size=10, line_width=2)
-    result_image = Image.fromarray(result_image[..., ::-1])
-    
-    # Menyimpan gambar hasil ke buffer dan mengembalikannya
-    img_byte_arr = io.BytesIO()
-    result_image.save(img_byte_arr, format='JPEG')
-    img_byte_arr.seek(0)
-    
-    return StreamingResponse(img_byte_arr, media_type="image/jpeg")
+    if not model:
+        return {"error": "YOLO model tidak berhasil dimuat."}, 500
+    try:
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
+        results = model(image, conf=0.1)
+        result_image = results[0].plot(labels=True, conf=True, boxes=True, font_size=10, line_width=5)
+        # result_image = results[0].plot()
+        result_image = Image.fromarray(result_image[..., ::-1])
+        img_byte_arr = io.BytesIO()
+        result_image.save(img_byte_arr, format='JPEG')
+        img_byte_arr.seek(0)
+        return StreamingResponse(img_byte_arr, media_type="image/jpeg")
+    except Exception as e:
+        return {"error": f"Terjadi kesalahan saat memproses gambar: {e}"}
 
-# Endpoint untuk deteksi video
+# Endpoint untuk deteksi video (menerima upload)
 @app.post("/detect/video")
 async def detect_video(file: UploadFile = File(...)):
     """
     Menerima upload video, memproses setiap frame, dan mengembalikan video baru.
     """
-    # Kode ini akan lebih kompleks dan biasanya memerlukan
-    # menyimpan file sementara dan memprosesnya secara frame-by-frame
-    # menggunakan OpenCV. Ini adalah contoh yang lebih sederhana.
-    # Untuk kasus nyata, pertimbangkan memproses secara asinkronus
-    # dan mengembalikan URL ke video hasil.
-    return {"message": "Endpoint untuk video sedang dalam pengembangan."}
+    if not model:
+        return {"error": "YOLO model tidak berhasil dimuat."}, 500
+    try:
+        video_path = f"/tmp/{file.filename}"
+        with open(video_path, "wb") as buffer:
+            buffer.write(await file.read())
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return {"error": "Tidak dapat membuka file video."}
+
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        output_path = f"/tmp/output_{file.filename}"
+        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            results = model(frame, verbose=False)
+            annotated_frame = results[0].plot()
+            out.write(annotated_frame)
+
+        cap.release()
+        out.release()
+
+        with open(output_path, "rb") as video_file:
+            video_bytes = video_file.read()
+
+        return StreamingResponse(io.BytesIO(video_bytes), media_type="video/mp4")
+    
+    except Exception as e:
+        return {"error": f"Terjadi kesalahan saat memproses video: {e}"}
 
 # Endpoint untuk deteksi real-time (streaming dari webcam)
-# Endpoint ini akan memerlukan pendekatan yang berbeda, biasanya
-# menggunakan WebSocket atau streaming HTTP.
 @app.get("/stream/realtime")
 async def realtime_stream():
     """
     Streaming video real-time dengan deteksi objek dari kamera.
     """
+    if not model:
+        return {"error": "YOLO model tidak berhasil dimuat."}, 500
+    
     def generate_frames():
-        camera = cv2.VideoCapture(1)  # Ganti dengan URL stream jika perlu
+        camera = cv2.VideoCapture(1)
         if not camera.isOpened():
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + b'{"error": "Kamera tidak dapat diakses."}' + b'\r\n')
             return
         
         while True:
@@ -68,10 +125,7 @@ async def realtime_stream():
             if not success:
                 break
             
-            # Lakukan inferensi pada frame
             results = model(frame, verbose=False)
-            
-            # Gambar kotak hasil pada frame
             annotated_frame = results[0].plot()
             
             ret, buffer = cv2.imencode('.jpg', annotated_frame)
@@ -85,5 +139,9 @@ async def realtime_stream():
         
     return StreamingResponse(generate_frames(), media_type="multipart/x-mixed-replace;boundary=frame")
 
-# Untuk menjalankan server:
-# uvicorn main:app --reload
+# Endpoint OPTIONS eksplisit untuk semua jalur
+@app.options("/{path:path}")
+async def preflight_handler(path: str):
+    return Response(status_code=200)
+
+
