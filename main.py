@@ -1,12 +1,12 @@
-import io
-import cv2
-import uvicorn
-import numpy as np
-from PIL import Image
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, WebSocket
 from fastapi.responses import StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
+import uvicorn
+import cv2
+import io
+import numpy as np
+from PIL import Image
 
 # Inisialisasi FastAPI
 app = FastAPI()
@@ -139,9 +139,51 @@ async def realtime_stream():
         
     return StreamingResponse(generate_frames(), media_type="multipart/x-mixed-replace;boundary=frame")
 
+# Endpoint baru menggunakan WebSocket
+@app.websocket("/ws/stream/realtime")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    Streaming video real-time dengan deteksi objek dari kamera melalui WebSocket.
+    """
+    await websocket.accept()
+    if not model:
+        await websocket.send_json({"error": "YOLO model tidak berhasil dimuat."})
+        await websocket.close()
+        return
+
+    cap = cv2.VideoCapture(1)  # Ganti dengan 1 jika webcam default tidak berfungsi
+    if not cap.isOpened():
+        await websocket.send_json({"error": "Kamera tidak dapat diakses."})
+        await websocket.close()
+        return
+
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # Lakukan deteksi objek
+            results = model(frame, verbose=False, conf=0.8)
+            annotated_frame = results[0].plot()
+
+            # Encode frame yang sudah diannotasi menjadi JPEG
+            ret, buffer = cv2.imencode('.jpg', annotated_frame)
+            if ret:
+                # Kirim frame sebagai byte melalui WebSocket
+                await websocket.send_bytes(buffer.tobytes())
+            
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        cap.release()
+        await websocket.close()
+
 # Endpoint OPTIONS eksplisit untuk semua jalur
 @app.options("/{path:path}")
 async def preflight_handler(path: str):
     return Response(status_code=200)
+
+
 
 
