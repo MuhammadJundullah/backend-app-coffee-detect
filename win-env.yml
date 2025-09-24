@@ -1,16 +1,7 @@
-name: base
+name: fastapi_yolo_env
 channels:
   - defaults
 dependencies:
-  - python=3.13
-  - conda==25.5.1
-  - setuptools
-  - pip
-  - conda-anaconda-telemetry
-  - conda-anaconda-tos[version='>=0.2.0']
-  - conda-content-trust
-  - conda-libmamba-solver
-  - menuinst
-  - python.app
-  - anaconda-anon-usage
-prefix: /usr/local/Caskroom/miniconda/base
+  - python=3.10
+  - websockets
+prefix: /usr/local/Caskroom/miniconda/base/envs/fastapi_yolo_env
